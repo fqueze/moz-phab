@@ -8,7 +8,7 @@ import threading
 import time
 from contextlib import contextmanager
 
-from mozphab import environment
+from mozphab import environment, profiler
 
 
 def clear_terminal_line():
@@ -58,14 +58,16 @@ class Spinner(threading.Thread):
 
 @contextmanager
 def wait_message(message: str):
-    if not environment.SHOW_SPINNER:
-        yield
-        return
+    with profiler.phase(message):
+        if not environment.SHOW_SPINNER:
+            yield
+            return
 
-    spinner = Spinner(message)
-    spinner.start()
-    try:
-        yield
-    finally:
-        spinner.running = False
-        spinner.join()
+        spinner = Spinner(message)
+        spinner.start()
+        try:
+            yield
+        finally:
+            spinner.running = False
+            with profiler.sleep_marker("Waiting for the spinner to stop"):
+                spinner.join()

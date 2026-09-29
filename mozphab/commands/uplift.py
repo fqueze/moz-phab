@@ -9,6 +9,7 @@ import urllib.request as url_request
 import webbrowser
 from pathlib import Path
 
+from mozphab import profiler
 from mozphab.conduit import (
     conduit,
 )
@@ -113,7 +114,11 @@ def link_assessment(lando_url: str, revision_id: int, assessment_id: int):
     logger.debug("Linking revision D%s to assessment %s.", revision_id, assessment_id)
 
     try:
-        with url_request.urlopen(request) as response:
+        with (
+            profiler.network_marker(api_url, "POST") as marker_data,
+            url_request.urlopen(request) as response,
+        ):
+            marker_data["responseStatus"] = response.status
             return json.load(response)
     except url_error.HTTPError as err:
         body = err.read().decode("utf-8", errors="replace")

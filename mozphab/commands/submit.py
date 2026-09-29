@@ -7,7 +7,7 @@ import logging
 import textwrap
 import time
 
-from mozphab import environment
+from mozphab import environment, profiler
 from mozphab.commits import AiReviewState, Commit
 from mozphab.conduit import ConduitAPIError, conduit, normalise_reviewer
 from mozphab.config import config
@@ -661,7 +661,8 @@ def _submit(repo: Repository, args: argparse.Namespace) -> list[Commit]:
         # Check if local and remote VCS matches
         repo.check_vcs()
 
-    repo.before_submit()
+    with profiler.phase("Checking the working directory"):
+        repo.before_submit()
 
     # Find and preview commits to submits.
     with wait_message("Looking for commits.."):

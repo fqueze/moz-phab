@@ -18,7 +18,7 @@ import traceback
 
 from packaging.version import Version
 
-from mozphab import environment
+from mozphab import environment, profiler
 
 from .args import parse_args
 from .conduit import ConduitAPIError, conduit
@@ -94,6 +94,8 @@ def main(argv: list[str], *, is_development: bool):
         os.environ["MOZPHAB"] = "1"
 
         args = parse_args(argv)
+        if not args.fallback:
+            profiler.set_track_name(f"moz-phab {args.command}")
 
         if args.trace:
             environment.DEBUG = True
@@ -133,7 +135,8 @@ def main(argv: list[str], *, is_development: bool):
             conduit.set_repo(repo)
 
         if not is_development:
-            configure_telemetry(args)
+            with profiler.phase("Configuring telemetry"):
+                configure_telemetry(args)
 
         if repo is not None:
             assert_api_token_is_present(repo, args)
@@ -142,7 +145,8 @@ def main(argv: list[str], *, is_development: bool):
             try:
                 args.func(repo, args)
             finally:
-                repo.cleanup()
+                with profiler.phase("Cleaning up"):
+                    repo.cleanup()
 
         else:
             args.func(args)
@@ -182,9 +186,22 @@ def main(argv: list[str], *, is_development: bool):
         sys.exit(1)
 
 
+def save_profile():
+    try:
+        if path := profiler.save():
+            logger.debug("Profile saved to %s", path)
+    except Exception as e:
+        # Profiling must never make a command fail.
+        logger.debug("Failed to save the profile: %s", e)
+
+
 def run():
     is_development = Version(environment.MOZPHAB_VERSION).is_prerelease
-    main(sys.argv[1:], is_development=is_development)
+    profiler.add_startup_phase()
+    try:
+        main(sys.argv[1:], is_development=is_development)
+    finally:
+        save_profile()
 
 
 if __name__ == "__main__":

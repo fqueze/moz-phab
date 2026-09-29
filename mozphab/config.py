@@ -10,7 +10,7 @@ from typing import (
     Any,
 )
 
-from mozphab import environment
+from mozphab import environment, profiler
 
 from .logger import logger
 
@@ -82,7 +82,8 @@ class Config(object):
             self._config.remove_section("arc")
 
         if should_access_file:
-            self._config.read([self.filename])
+            with profiler.file_io("read", self.filename):
+                self._config.read([self.filename])
 
         self.no_ansi = self._getboolean("ui", "no_ansi")
         self.hyperlinks = self._getboolean("ui", "hyperlinks")
@@ -190,7 +191,10 @@ class Config(object):
             self._set("patch", "create_commit", self.create_commit)
             self._set("telemetry", "enabled", self.telemetry_enabled)
 
-        with self.filename.open("w", encoding="utf-8") as f:
+        with (
+            profiler.file_io("write", self.filename),
+            self.filename.open("w", encoding="utf-8") as f,
+        ):
             self._config.write(f)
 
 
